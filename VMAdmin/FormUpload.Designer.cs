@@ -54,6 +54,8 @@
             lblResumen = new Label();
             openFileDialog1 = new OpenFileDialog();
             toolTip1 = new ToolTip(components);
+            rButtonFicheros = new RadioButton();
+            rButtonCarpeta = new RadioButton();
             groupBox1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             groupBox2.SuspendLayout();
@@ -84,7 +86,7 @@
             listCopiaError.HorizontalScrollbar = true;
             listCopiaError.Location = new Point(371, 265);
             listCopiaError.Name = "listCopiaError";
-            listCopiaError.Size = new Size(361, 264);
+            listCopiaError.Size = new Size(362, 264);
             listCopiaError.TabIndex = 2;
             listCopiaError.KeyDown += listCopiaError_KeyDown;
             // 
@@ -100,7 +102,7 @@
             // 
             // btnExaminar
             // 
-            btnExaminar.Location = new Point(335, 70);
+            btnExaminar.Location = new Point(335, 112);
             btnExaminar.Name = "btnExaminar";
             btnExaminar.Size = new Size(35, 29);
             btnExaminar.TabIndex = 5;
@@ -110,7 +112,7 @@
             // 
             // textBoxArchivoACopiar
             // 
-            textBoxArchivoACopiar.Location = new Point(142, 71);
+            textBoxArchivoACopiar.Location = new Point(142, 113);
             textBoxArchivoACopiar.Name = "textBoxArchivoACopiar";
             textBoxArchivoACopiar.Size = new Size(193, 27);
             textBoxArchivoACopiar.TabIndex = 6;
@@ -118,7 +120,7 @@
             // label3
             // 
             label3.AutoSize = true;
-            label3.Location = new Point(44, 111);
+            label3.Location = new Point(44, 153);
             label3.Name = "label3";
             label3.Size = new Size(92, 20);
             label3.TabIndex = 7;
@@ -126,7 +128,7 @@
             // 
             // textBoxDestino
             // 
-            textBoxDestino.Location = new Point(142, 108);
+            textBoxDestino.Location = new Point(142, 150);
             textBoxDestino.Name = "textBoxDestino";
             textBoxDestino.PlaceholderText = "C$\\Temp\\";
             textBoxDestino.Size = new Size(193, 27);
@@ -134,7 +136,7 @@
             // 
             // button2
             // 
-            button2.Location = new Point(656, 160);
+            button2.Location = new Point(656, 194);
             button2.Name = "button2";
             button2.Size = new Size(76, 45);
             button2.TabIndex = 9;
@@ -146,7 +148,7 @@
             // 
             btnSubir.Image = (Image)resources.GetObject("btnSubir.Image");
             btnSubir.ImageAlign = ContentAlignment.MiddleLeft;
-            btnSubir.Location = new Point(504, 160);
+            btnSubir.Location = new Point(504, 194);
             btnSubir.Name = "btnSubir";
             btnSubir.Size = new Size(146, 45);
             btnSubir.TabIndex = 10;
@@ -165,11 +167,11 @@
             // label4
             // 
             label4.AutoSize = true;
-            label4.Location = new Point(19, 75);
+            label4.Location = new Point(20, 76);
             label4.Name = "label4";
-            label4.Size = new Size(117, 20);
+            label4.Size = new Size(106, 20);
             label4.TabIndex = 12;
-            label4.Text = "Archivo a copiar";
+            label4.Text = "Archivo origen";
             label4.Click += label4_Click;
             // 
             // label5
@@ -208,20 +210,23 @@
             // 
             // groupBox1
             // 
+            groupBox1.Controls.Add(rButtonCarpeta);
+            groupBox1.Controls.Add(label4);
+            groupBox1.Controls.Add(rButtonFicheros);
             groupBox1.Controls.Add(chkDescomprimir);
             groupBox1.Controls.Add(pictureBox1);
             groupBox1.Controls.Add(chkCrearRuta);
             groupBox1.Location = new Point(10, 40);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(369, 165);
+            groupBox1.Size = new Size(369, 199);
             groupBox1.TabIndex = 17;
             groupBox1.TabStop = false;
-            groupBox1.Text = "Configuración";
+            groupBox1.Text = "Origen";
             // 
             // chkDescomprimir
             // 
             chkDescomprimir.AutoSize = true;
-            chkDescomprimir.Location = new Point(9, 134);
+            chkDescomprimir.Location = new Point(9, 168);
             chkDescomprimir.Name = "chkDescomprimir";
             chkDescomprimir.Size = new Size(250, 24);
             chkDescomprimir.TabIndex = 22;
@@ -231,7 +236,7 @@
             // pictureBox1
             // 
             pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
-            pictureBox1.Location = new Point(327, 67);
+            pictureBox1.Location = new Point(327, 109);
             pictureBox1.Name = "pictureBox1";
             pictureBox1.Size = new Size(28, 28);
             pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
@@ -243,7 +248,7 @@
             // 
             chkCrearRuta.AutoSize = true;
             chkCrearRuta.Enabled = false;
-            chkCrearRuta.Location = new Point(9, 112);
+            chkCrearRuta.Location = new Point(9, 146);
             chkCrearRuta.Name = "chkCrearRuta";
             chkCrearRuta.Size = new Size(173, 24);
             chkCrearRuta.TabIndex = 20;
@@ -276,13 +281,34 @@
             // 
             openFileDialog1.FileName = "openFileDialog1";
             // 
+            // rButtonFicheros
+            // 
+            rButtonFicheros.AutoSize = true;
+            rButtonFicheros.Checked = true;
+            rButtonFicheros.Location = new Point(10, 30);
+            rButtonFicheros.Name = "rButtonFicheros";
+            rButtonFicheros.Size = new Size(84, 24);
+            rButtonFicheros.TabIndex = 23;
+            rButtonFicheros.TabStop = true;
+            rButtonFicheros.Text = "Ficheros";
+            rButtonFicheros.UseVisualStyleBackColor = true;
+            // 
+            // rButtonCarpeta
+            // 
+            rButtonCarpeta.AutoSize = true;
+            rButtonCarpeta.Location = new Point(171, 30);
+            rButtonCarpeta.Name = "rButtonCarpeta";
+            rButtonCarpeta.Size = new Size(88, 24);
+            rButtonCarpeta.TabIndex = 24;
+            rButtonCarpeta.Text = "Carpetas";
+            rButtonCarpeta.UseVisualStyleBackColor = true;
+            // 
             // FormUpload
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(744, 559);
             Controls.Add(lblResumen);
-            Controls.Add(label4);
             Controls.Add(progressBar1);
             Controls.Add(btnSubir);
             Controls.Add(button2);
@@ -334,5 +360,7 @@
         private PictureBox pictureBox1;
         private ToolTip toolTip1;
         private CheckBox chkDescomprimir;
+        private RadioButton rButtonCarpeta;
+        private RadioButton rButtonFicheros;
     }
 }
