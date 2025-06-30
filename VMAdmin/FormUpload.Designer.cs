@@ -35,29 +35,34 @@
             listCopiaError = new ListBox();
             label2 = new Label();
             btnExaminar = new Button();
-            textBoxArchivoACopiar = new TextBox();
             label3 = new Label();
             textBoxDestino = new TextBox();
             button2 = new Button();
             btnSubir = new Button();
             progressBar1 = new ProgressBar();
-            label4 = new Label();
             label5 = new Label();
             label6 = new Label();
             textBoxUsuario = new TextBox();
             textBoxPassword = new TextBox();
             groupBox1 = new GroupBox();
+            btnLimpiarLista = new Button();
+            btnEliminarSeleccionado = new Button();
+            dataGridArchivosOrigen = new DataGridView();
+            ColTipo = new DataGridViewTextBoxColumn();
+            ColNombre = new DataGridViewTextBoxColumn();
+            ColRutaCompleta = new DataGridViewTextBoxColumn();
+            ColTamano = new DataGridViewTextBoxColumn();
+            ColFechaModificacion = new DataGridViewTextBoxColumn();
+            rbCarpetas = new RadioButton();
+            rbArchivos = new RadioButton();
             chkDescomprimir = new CheckBox();
-            pictureBox1 = new PictureBox();
-            chkCrearRuta = new CheckBox();
             groupBox2 = new GroupBox();
             lblResumen = new Label();
             openFileDialog1 = new OpenFileDialog();
             toolTip1 = new ToolTip(components);
-            rButtonFicheros = new RadioButton();
-            rButtonCarpeta = new RadioButton();
+            progressBar2 = new ProgressBar();
             groupBox1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)dataGridArchivosOrigen).BeginInit();
             groupBox2.SuspendLayout();
             SuspendLayout();
             // 
@@ -65,15 +70,15 @@
             // 
             listCopiaOK.FormattingEnabled = true;
             listCopiaOK.HorizontalScrollbar = true;
-            listCopiaOK.Location = new Point(12, 265);
+            listCopiaOK.Location = new Point(12, 561);
             listCopiaOK.Name = "listCopiaOK";
-            listCopiaOK.Size = new Size(353, 264);
+            listCopiaOK.Size = new Size(353, 184);
             listCopiaOK.TabIndex = 0;
             // 
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(9, 242);
+            label1.Location = new Point(9, 538);
             label1.Name = "label1";
             label1.Size = new Size(95, 20);
             label1.TabIndex = 1;
@@ -84,16 +89,16 @@
             // 
             listCopiaError.FormattingEnabled = true;
             listCopiaError.HorizontalScrollbar = true;
-            listCopiaError.Location = new Point(371, 265);
+            listCopiaError.Location = new Point(371, 561);
             listCopiaError.Name = "listCopiaError";
-            listCopiaError.Size = new Size(362, 264);
+            listCopiaError.Size = new Size(362, 184);
             listCopiaError.TabIndex = 2;
             listCopiaError.KeyDown += listCopiaError_KeyDown;
             // 
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(371, 242);
+            label2.Location = new Point(371, 538);
             label2.Name = "label2";
             label2.Size = new Size(84, 20);
             label2.TabIndex = 3;
@@ -102,25 +107,23 @@
             // 
             // btnExaminar
             // 
-            btnExaminar.Location = new Point(335, 112);
+            btnExaminar.Image = (Image)resources.GetObject("btnExaminar.Image");
+            btnExaminar.ImageAlign = ContentAlignment.MiddleLeft;
+            btnExaminar.Location = new Point(10, 136);
             btnExaminar.Name = "btnExaminar";
-            btnExaminar.Size = new Size(35, 29);
+            btnExaminar.Padding = new Padding(5, 0, 0, 0);
+            btnExaminar.Size = new Size(146, 41);
             btnExaminar.TabIndex = 5;
-            btnExaminar.Text = "...";
+            btnExaminar.Text = "Seleccionar...";
+            btnExaminar.TextAlign = ContentAlignment.MiddleRight;
+            toolTip1.SetToolTip(btnExaminar, "Seleccionar archivos a copiar");
             btnExaminar.UseVisualStyleBackColor = true;
             btnExaminar.Click += btnExaminar_Click;
-            // 
-            // textBoxArchivoACopiar
-            // 
-            textBoxArchivoACopiar.Location = new Point(142, 113);
-            textBoxArchivoACopiar.Name = "textBoxArchivoACopiar";
-            textBoxArchivoACopiar.Size = new Size(193, 27);
-            textBoxArchivoACopiar.TabIndex = 6;
             // 
             // label3
             // 
             label3.AutoSize = true;
-            label3.Location = new Point(44, 153);
+            label3.Location = new Point(8, 446);
             label3.Name = "label3";
             label3.Size = new Size(92, 20);
             label3.TabIndex = 7;
@@ -128,15 +131,15 @@
             // 
             // textBoxDestino
             // 
-            textBoxDestino.Location = new Point(142, 150);
+            textBoxDestino.Location = new Point(106, 443);
             textBoxDestino.Name = "textBoxDestino";
             textBoxDestino.PlaceholderText = "C$\\Temp\\";
-            textBoxDestino.Size = new Size(193, 27);
+            textBoxDestino.Size = new Size(621, 27);
             textBoxDestino.TabIndex = 8;
             // 
             // button2
             // 
-            button2.Location = new Point(656, 194);
+            button2.Location = new Point(657, 14);
             button2.Name = "button2";
             button2.Size = new Size(76, 45);
             button2.TabIndex = 9;
@@ -148,31 +151,23 @@
             // 
             btnSubir.Image = (Image)resources.GetObject("btnSubir.Image");
             btnSubir.ImageAlign = ContentAlignment.MiddleLeft;
-            btnSubir.Location = new Point(504, 194);
+            btnSubir.Location = new Point(505, 14);
             btnSubir.Name = "btnSubir";
+            btnSubir.Padding = new Padding(5, 0, 0, 0);
             btnSubir.Size = new Size(146, 45);
             btnSubir.TabIndex = 10;
             btnSubir.Text = "Iniciar copia";
             btnSubir.TextAlign = ContentAlignment.MiddleRight;
+            toolTip1.SetToolTip(btnSubir, "Iniciar copia de archivos seleccionados hacia estaciones remotas");
             btnSubir.UseVisualStyleBackColor = true;
             btnSubir.Click += btnSubir_Click;
             // 
             // progressBar1
             // 
-            progressBar1.Location = new Point(12, 535);
+            progressBar1.Location = new Point(12, 485);
             progressBar1.Name = "progressBar1";
-            progressBar1.Size = new Size(720, 15);
+            progressBar1.Size = new Size(715, 15);
             progressBar1.TabIndex = 11;
-            // 
-            // label4
-            // 
-            label4.AutoSize = true;
-            label4.Location = new Point(20, 76);
-            label4.Name = "label4";
-            label4.Size = new Size(106, 20);
-            label4.TabIndex = 12;
-            label4.Text = "Archivo origen";
-            label4.Click += label4_Click;
             // 
             // label5
             // 
@@ -210,50 +205,136 @@
             // 
             // groupBox1
             // 
-            groupBox1.Controls.Add(rButtonCarpeta);
-            groupBox1.Controls.Add(label4);
-            groupBox1.Controls.Add(rButtonFicheros);
+            groupBox1.Controls.Add(btnLimpiarLista);
+            groupBox1.Controls.Add(btnEliminarSeleccionado);
+            groupBox1.Controls.Add(dataGridArchivosOrigen);
+            groupBox1.Controls.Add(rbCarpetas);
+            groupBox1.Controls.Add(rbArchivos);
             groupBox1.Controls.Add(chkDescomprimir);
-            groupBox1.Controls.Add(pictureBox1);
-            groupBox1.Controls.Add(chkCrearRuta);
-            groupBox1.Location = new Point(10, 40);
+            groupBox1.Controls.Add(groupBox2);
+            groupBox1.Controls.Add(btnExaminar);
+            groupBox1.Location = new Point(10, 65);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(369, 199);
+            groupBox1.Size = new Size(723, 371);
             groupBox1.TabIndex = 17;
             groupBox1.TabStop = false;
             groupBox1.Text = "Origen";
+            groupBox1.Enter += groupBox1_Enter;
+            // 
+            // btnLimpiarLista
+            // 
+            btnLimpiarLista.Image = (Image)resources.GetObject("btnLimpiarLista.Image");
+            btnLimpiarLista.Location = new Point(663, 136);
+            btnLimpiarLista.Name = "btnLimpiarLista";
+            btnLimpiarLista.Size = new Size(50, 41);
+            btnLimpiarLista.TabIndex = 26;
+            toolTip1.SetToolTip(btnLimpiarLista, "Borrar todo");
+            btnLimpiarLista.UseVisualStyleBackColor = true;
+            btnLimpiarLista.Click += btnLimpiarLista_Click;
+            // 
+            // btnEliminarSeleccionado
+            // 
+            btnEliminarSeleccionado.Image = (Image)resources.GetObject("btnEliminarSeleccionado.Image");
+            btnEliminarSeleccionado.Location = new Point(607, 136);
+            btnEliminarSeleccionado.Name = "btnEliminarSeleccionado";
+            btnEliminarSeleccionado.Size = new Size(50, 41);
+            btnEliminarSeleccionado.TabIndex = 25;
+            toolTip1.SetToolTip(btnEliminarSeleccionado, "Eliminar seleccionado");
+            btnEliminarSeleccionado.UseVisualStyleBackColor = true;
+            btnEliminarSeleccionado.Click += btnEliminarSeleccionado_Click;
+            // 
+            // dataGridArchivosOrigen
+            // 
+            dataGridArchivosOrigen.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dataGridArchivosOrigen.Columns.AddRange(new DataGridViewColumn[] { ColTipo, ColNombre, ColRutaCompleta, ColTamano, ColFechaModificacion });
+            dataGridArchivosOrigen.Location = new Point(6, 183);
+            dataGridArchivosOrigen.Name = "dataGridArchivosOrigen";
+            dataGridArchivosOrigen.RowHeadersWidth = 51;
+            dataGridArchivosOrigen.Size = new Size(711, 182);
+            dataGridArchivosOrigen.TabIndex = 20;
+            // 
+            // ColTipo
+            // 
+            ColTipo.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            ColTipo.DataPropertyName = "Tipo";
+            ColTipo.HeaderText = "Tipo";
+            ColTipo.MinimumWidth = 6;
+            ColTipo.Name = "ColTipo";
+            ColTipo.ReadOnly = true;
+            ColTipo.Width = 68;
+            // 
+            // ColNombre
+            // 
+            ColNombre.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            ColNombre.DataPropertyName = "Nombre";
+            ColNombre.HeaderText = "Nombre";
+            ColNombre.MinimumWidth = 6;
+            ColNombre.Name = "ColNombre";
+            ColNombre.ReadOnly = true;
+            ColNombre.Width = 93;
+            // 
+            // ColRutaCompleta
+            // 
+            ColRutaCompleta.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            ColRutaCompleta.DataPropertyName = "RutaCompleta";
+            ColRutaCompleta.HeaderText = "Ruta Completa";
+            ColRutaCompleta.MinimumWidth = 6;
+            ColRutaCompleta.Name = "ColRutaCompleta";
+            ColRutaCompleta.ReadOnly = true;
+            // 
+            // ColTamano
+            // 
+            ColTamano.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            ColTamano.DataPropertyName = "Tamano";
+            ColTamano.HeaderText = "Tamaño";
+            ColTamano.MinimumWidth = 6;
+            ColTamano.Name = "ColTamano";
+            ColTamano.ReadOnly = true;
+            ColTamano.Width = 90;
+            // 
+            // ColFechaModificacion
+            // 
+            ColFechaModificacion.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            ColFechaModificacion.DataPropertyName = "FechaModificacion";
+            ColFechaModificacion.HeaderText = "Fecha Modificación";
+            ColFechaModificacion.MinimumWidth = 6;
+            ColFechaModificacion.Name = "ColFechaModificacion";
+            ColFechaModificacion.ReadOnly = true;
+            ColFechaModificacion.Width = 153;
+            // 
+            // rbCarpetas
+            // 
+            rbCarpetas.AutoSize = true;
+            rbCarpetas.Location = new Point(171, 30);
+            rbCarpetas.Name = "rbCarpetas";
+            rbCarpetas.Size = new Size(88, 24);
+            rbCarpetas.TabIndex = 24;
+            rbCarpetas.Text = "Carpetas";
+            rbCarpetas.UseVisualStyleBackColor = true;
+            rbCarpetas.CheckedChanged += rbCarpetas_CheckedChanged;
+            // 
+            // rbArchivos
+            // 
+            rbArchivos.AutoSize = true;
+            rbArchivos.Checked = true;
+            rbArchivos.Location = new Point(10, 30);
+            rbArchivos.Name = "rbArchivos";
+            rbArchivos.Size = new Size(86, 24);
+            rbArchivos.TabIndex = 23;
+            rbArchivos.TabStop = true;
+            rbArchivos.Text = "Archivos";
+            rbArchivos.UseVisualStyleBackColor = true;
+            rbArchivos.CheckedChanged += rbArchivos_CheckedChanged;
             // 
             // chkDescomprimir
             // 
             chkDescomprimir.AutoSize = true;
-            chkDescomprimir.Location = new Point(9, 168);
+            chkDescomprimir.Location = new Point(10, 64);
             chkDescomprimir.Name = "chkDescomprimir";
             chkDescomprimir.Size = new Size(250, 24);
             chkDescomprimir.TabIndex = 22;
             chkDescomprimir.Text = "Descomprimir después de copiar";
             chkDescomprimir.UseVisualStyleBackColor = true;
-            // 
-            // pictureBox1
-            // 
-            pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
-            pictureBox1.Location = new Point(327, 109);
-            pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(28, 28);
-            pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
-            pictureBox1.TabIndex = 21;
-            pictureBox1.TabStop = false;
-            toolTip1.SetToolTip(pictureBox1, "La ruta debe existir en el(los) equipos remotos.\r\n");
-            // 
-            // chkCrearRuta
-            // 
-            chkCrearRuta.AutoSize = true;
-            chkCrearRuta.Enabled = false;
-            chkCrearRuta.Location = new Point(9, 146);
-            chkCrearRuta.Name = "chkCrearRuta";
-            chkCrearRuta.Size = new Size(173, 24);
-            chkCrearRuta.TabIndex = 20;
-            chkCrearRuta.Text = "Crear ruta si no existe";
-            chkCrearRuta.UseVisualStyleBackColor = true;
             // 
             // groupBox2
             // 
@@ -261,7 +342,7 @@
             groupBox2.Controls.Add(textBoxUsuario);
             groupBox2.Controls.Add(label5);
             groupBox2.Controls.Add(label6);
-            groupBox2.Location = new Point(388, 40);
+            groupBox2.Location = new Point(368, 18);
             groupBox2.Name = "groupBox2";
             groupBox2.Size = new Size(345, 106);
             groupBox2.TabIndex = 18;
@@ -281,53 +362,36 @@
             // 
             openFileDialog1.FileName = "openFileDialog1";
             // 
-            // rButtonFicheros
+            // progressBar2
             // 
-            rButtonFicheros.AutoSize = true;
-            rButtonFicheros.Checked = true;
-            rButtonFicheros.Location = new Point(10, 30);
-            rButtonFicheros.Name = "rButtonFicheros";
-            rButtonFicheros.Size = new Size(84, 24);
-            rButtonFicheros.TabIndex = 23;
-            rButtonFicheros.TabStop = true;
-            rButtonFicheros.Text = "Ficheros";
-            rButtonFicheros.UseVisualStyleBackColor = true;
-            // 
-            // rButtonCarpeta
-            // 
-            rButtonCarpeta.AutoSize = true;
-            rButtonCarpeta.Location = new Point(171, 30);
-            rButtonCarpeta.Name = "rButtonCarpeta";
-            rButtonCarpeta.Size = new Size(88, 24);
-            rButtonCarpeta.TabIndex = 24;
-            rButtonCarpeta.Text = "Carpetas";
-            rButtonCarpeta.UseVisualStyleBackColor = true;
+            progressBar2.Location = new Point(12, 506);
+            progressBar2.Name = "progressBar2";
+            progressBar2.Size = new Size(715, 15);
+            progressBar2.TabIndex = 20;
             // 
             // FormUpload
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(744, 559);
+            ClientSize = new Size(741, 756);
+            Controls.Add(progressBar2);
             Controls.Add(lblResumen);
             Controls.Add(progressBar1);
-            Controls.Add(btnSubir);
-            Controls.Add(button2);
             Controls.Add(textBoxDestino);
+            Controls.Add(btnSubir);
             Controls.Add(label3);
-            Controls.Add(textBoxArchivoACopiar);
-            Controls.Add(btnExaminar);
+            Controls.Add(button2);
             Controls.Add(label2);
             Controls.Add(listCopiaError);
             Controls.Add(label1);
             Controls.Add(listCopiaOK);
             Controls.Add(groupBox1);
-            Controls.Add(groupBox2);
             Name = "FormUpload";
             StartPosition = FormStartPosition.CenterParent;
             Text = "FormUpload";
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
+            ((System.ComponentModel.ISupportInitialize)dataGridArchivosOrigen).EndInit();
             groupBox2.ResumeLayout(false);
             groupBox2.PerformLayout();
             ResumeLayout(false);
@@ -341,13 +405,11 @@
         private ListBox listCopiaError;
         private Label label2;
         private Button btnExaminar;
-        private TextBox textBoxArchivoACopiar;
         private Label label3;
         private TextBox textBoxDestino;
         private Button button2;
         private Button btnSubir;
         private ProgressBar progressBar1;
-        private Label label4;
         private Label label5;
         private Label label6;
         private TextBox textBoxUsuario;
@@ -356,11 +418,18 @@
         private GroupBox groupBox2;
         private Label lblResumen;
         private OpenFileDialog openFileDialog1;
-        private CheckBox chkCrearRuta;
-        private PictureBox pictureBox1;
         private ToolTip toolTip1;
         private CheckBox chkDescomprimir;
-        private RadioButton rButtonCarpeta;
-        private RadioButton rButtonFicheros;
+        private RadioButton rbCarpetas;
+        private RadioButton rbArchivos;
+        private DataGridView dataGridArchivosOrigen;
+        private DataGridViewTextBoxColumn ColTipo;
+        private DataGridViewTextBoxColumn ColNombre;
+        private DataGridViewTextBoxColumn ColRutaCompleta;
+        private DataGridViewTextBoxColumn ColTamano;
+        private DataGridViewTextBoxColumn ColFechaModificacion;
+        private Button btnLimpiarLista;
+        private Button btnEliminarSeleccionado;
+        private ProgressBar progressBar2;
     }
 }

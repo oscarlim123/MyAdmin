@@ -13,7 +13,7 @@ using System.Windows.Forms;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using Microsoft.VisualBasic.ApplicationServices;
-
+using System.IO;
 
 namespace VMAdmin
 {
@@ -21,6 +21,12 @@ namespace VMAdmin
     {
         private List<string> _estacionesSeleccionadas;
         private string _rutaDestinoPredeterminada = @"C$\Temp\"; // Opcional: valor por defecto
+
+        // Nuevas variables para gestionar el origen a copiar
+        private enum SourceType { None, File, Folder }                      // Enumeración para el tipo de origen
+        private SourceType _currentSourceType = SourceType.None;            // Tipo de origen actual
+        private List<string> _selectedSourcePaths = new List<string>();     // Lista para almacenar las rutas de los archivos/carpetas        
+        private BindingList<SourceItem> _selectedSourceItems = new BindingList<SourceItem>(); // Esta lista almacenará los objetos SourceItem para el DataGridView
 
         public FormUpload(List<string> estacionesSeleccionadas)
         {
@@ -37,11 +43,44 @@ namespace VMAdmin
                 return;
             }
 
-            // Opcional: Mostrar resumen al cargar
+            // Mostrar resumen al cargar
             lblResumen.Text = $"Se realizará la copia hacia {_estacionesSeleccionadas.Count} estación(es)";
-            //btnExaminar.Click += btnExaminar_Click;
+
+            // Configuración inicial de los controles
+            rbArchivos.Checked = true;
+            _currentSourceType = SourceType.File;
+
+            // Enlaza el DataGridView a la lista de SourceItem
+            dataGridArchivosOrigen.AutoGenerateColumns = false; // Definir las columnas manualmente
+            dataGridArchivosOrigen.DataSource = _selectedSourceItems;
+
+            // Llama a un método para configurar las columnas del DataGridView
+            SetupDataGridViewColumns();
+
+            // Llama a un método para actualizar la UI según la selección inicial
+            UpdateSourceUI();
+
         }
 
+        /**********************************************************************************/
+
+        // Método para configurar las columnas del DataGridView
+        private void SetupDataGridViewColumns()
+        {
+            // Configurar estilos (opcional, se puede usar FormHelperMio.StyleDataGridView)
+            dataGridArchivosOrigen.AllowUserToAddRows = false;
+            dataGridArchivosOrigen.RowHeadersVisible = false;
+            dataGridArchivosOrigen.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dataGridArchivosOrigen.MultiSelect = true;
+        }
+        /**********************************************************************************/
+        // Método para actualizar la UI (lo implemento más abajo)
+        private void UpdateSourceUI()
+        {
+            //textBoxArchivoACopiar.Text = string.Empty;
+            _selectedSourcePaths.Clear(); // Limpia la lista de rutas seleccionadas
+        }
+        /**********************************************************************************/
         private void label4_Click(object sender, EventArgs e)
         {
 
@@ -56,20 +95,69 @@ namespace VMAdmin
 
         private async void btnSubir_Click(object sender, EventArgs e)
         {
-            // Validaciones básicas
-            if (string.IsNullOrEmpty(textBoxArchivoACopiar.Text))
+            // === REVALIDACIÓN PARA EL NUEVO FLUJO DE MULTIPLES ARCHIVOS/CARPETAS ===
+            if (_selectedSourceItems.Count == 0)
             {
-                MessageBox.Show("Seleccione un archivo primero", "Advertencia",
-                              MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("No hay elementos seleccionados para copiar en la lista.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (!File.Exists(textBoxArchivoACopiar.Text))
+            if (_estacionesSeleccionadas.Count == 0)
             {
-                MessageBox.Show("El archivo seleccionado no existe", "Error",
-                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("No se han seleccionado estaciones remotas para la copia.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
+            // === ADVERTENCIA/CONFIRMACIÓN PARA DESCOMPRESIÓN MIXTA ===
+            if (chkDescomprimir.Checked)
+            {
+                // Verificar si hay archivos seleccionados que NO son .zip
+                bool hayArchivosNoZip = _selectedSourceItems.Any(item =>
+                    item.Tipo == "Archivo" &&
+                    !Path.GetExtension(item.RutaCompleta).Equals(".zip", StringComparison.OrdinalIgnoreCase)
+                );
+
+                if (hayArchivosNoZip)
+                {
+                    DialogResult result = MessageBox.Show(
+                        "Ha marcado 'Descomprimir', pero hay archivos que NO son ZIP en su lista. " +
+                        "Solo los archivos ZIP se descomprimirán automáticamente después de la copia. " +
+                        "¿Desea continuar con esta operación mixta?",
+                        "Confirmar Descompresión",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question
+                    );
+
+                    if (result == DialogResult.No)
+                    {
+                        // Si el usuario elige NO, cancelar la operación
+                        return;
+                    }
+                }
+            }
+            // === FIN ADVERTENCIA/CONFIRMACIÓN PARA DESCOMPRESIÓN MIXTA ===
+
+
+            // textBoxDestino.Text tendrá algo como "C:\instal" o "D:\destino"
+            // y lo convertirá a "C$\instal" o "D$\destino".
+            if (!string.IsNullOrEmpty(textBoxDestino.Text))
+            {
+                // Limpiamos barras y convertimos a formato de compartición administrativa
+                string tempDest = textBoxDestino.Text.Trim().Replace("/", "\\").TrimEnd('\\');
+                if (tempDest.Length >= 2 && tempDest[1] == ':') // Si es C:\ o D:\
+                {
+                    _rutaDestinoPredeterminada = tempDest[0] + "$" + tempDest.Substring(2) + "\\";
+                }
+                else // Si ya es algo como "C$\Temp" o "Temp"
+                {
+                    _rutaDestinoPredeterminada = tempDest + "\\";
+                }
+            }
+            else
+            {
+                _rutaDestinoPredeterminada = @"C$\Temp\"; // Valor por defecto si no se especifica
+            }
+
 
             // Obtener credenciales del formulario
             string usuario = textBoxUsuario.Text.Trim();
@@ -84,173 +172,201 @@ namespace VMAdmin
             }
             // Deshabilitar botón durante la operación
             btnSubir.Enabled = false;
+            Cursor = Cursors.WaitCursor;
+
+            // Limpiar los listbox de resultados de una ejecución anterior
+            listCopiaOK.Items.Clear();
+            listCopiaError.Items.Clear();
+
+            // Crear un log para depuración
+            string logFile = Path.Combine(Application.StartupPath, "debug_log.txt");
+            File.AppendAllText(logFile, $"\r\n============== Inicio operación: {DateTime.Now} ======================\r\n");
 
             try
             {
-                // Configurar progreso
-                progressBar1.Maximum = _estacionesSeleccionadas.Count;
+                progressBar1.Maximum = _estacionesSeleccionadas.Count * _selectedSourceItems.Count;
                 progressBar1.Value = 0;
-                listCopiaOK.Items.Clear();
-                listCopiaError.Items.Clear();
-
-                // Crear un log para depuración
-                string logFile = Path.Combine(Application.StartupPath, "debug_log.txt");
-                File.AppendAllText(logFile, $"=== Inicio operación: {DateTime.Now} ======================\r\n");
 
                 // Copiar a cada estación
-                foreach (var estacion in _estacionesSeleccionadas)
+                foreach (string ipAddress in _estacionesSeleccionadas)
                 {
-                    string nombreArchivo = Path.GetFileName(textBoxArchivoACopiar.Text);
-                    string rutaBase = textBoxDestino.Text.Trim();
-                    rutaBase = string.IsNullOrEmpty(rutaBase) ? "C$\\Temp" : rutaBase.Replace("/", "\\").Trim('\\');
-                    string destino = $@"\\{estacion}\{rutaBase}\{nombreArchivo}";
-                    string directorioDestino = Path.GetDirectoryName(destino);
+                    string adminShareForConnection = "C$"; // Valor por defecto si no se puede determinar la unidad
 
-                    try
+                    // Extraer la unidad administrativa (ej. "C$", "D$") de _rutaDestinoPredeterminada. ya tiene el formato "X$\..." o "C$\Temp\".
+                    if (_rutaDestinoPredeterminada.Length >= 2 && _rutaDestinoPredeterminada[1] == '$')
                     {
-                        // Usar NetworkConnection con credenciales
-                        NetworkCredential credenciales;
-
-                        // Comprobamos si el usuario tiene formato DOMINIO\AdminUser sino asumimos admin local
-                        if (usuario.Contains("\\"))
-                        {
-                            // Formato dominio\usuario
-                            var partes = usuario.Split('\\');
-
-                            if (partes.Length != 2 || string.IsNullOrWhiteSpace(partes[0]) || string.IsNullOrWhiteSpace(partes[1]))
-                            {
-                                MessageBox.Show("El formato del nombre de usuario del dominio debe ser: DOMINIO\\usuario",
-                                                "Formato inválido",
-                                                MessageBoxButtons.OK,
-                                                MessageBoxIcon.Warning);
-                                return;
-                            }
-
-                            credenciales = new NetworkCredential(partes[1], password, partes[0]);
-                        }
-                        else
-                        {
-                            // Usuario local
-                            credenciales = new NetworkCredential(usuario, password, Environment.UserDomainName);
-                        }
-
-
-                        using (var networkConn = new NetworkConnection(
-                            $@"\\{estacion}\{rutaBase}",
-                            credenciales))
-                        {
-
-                            // Verificar y crear carpeta destino si es necesario
-                            if (chkCrearRuta.Checked && !Directory.Exists(directorioDestino))
-                            {
-                                try
-                                {
-                                    Directory.CreateDirectory(directorioDestino);
-                                    File.AppendAllText(logFile, $"Creado directorio: {directorioDestino}\r\n");
-                                }
-                                catch (Exception ex)
-                                {
-                                    File.AppendAllText(logFile, $"Error creando directorio {directorioDestino}: {ex.Message}\r\n");
-                                    throw; // Propagar error
-                                }
-                            }
-
-
-                            // Copiar archivo
-                            File.Copy(textBoxArchivoACopiar.Text, destino, true);
-                            listCopiaOK.Items.Add($"{estacion} - ✓");
-                            File.AppendAllText(logFile, $"Archivo copiado a {destino}\r\n");
-
-
-                            // =====================
-                            // DESCOMPRESIÓN REMOTA 
-                            // =====================
-                            if (chkDescomprimir.Checked)
-                            {
-                                // Rutas en formato local para el equipo remoto
-                                //string carpetaLocalRemota = rutaBase.Replace("C$", "C:");
-                                //string rutaLocalRemota = Path.Combine(carpetaLocalRemota, nombreArchivo);
-                                //string rutaDestinoDescomprimido = Path.Combine(carpetaLocalRemota, "");
-
-                                // === CRUCIAL: ASEGURAR RUTAS LOCALES PARA EL SERVIDOR REMOTO (C:\...) ===
-                                // Convertir la ruta base de C$ a C: para que PowerShell la entienda localmente
-                                string carpetaLocalRemotaParaPS = rutaBase.Replace("C$", "C:", StringComparison.OrdinalIgnoreCase).Replace("c$", "c:", StringComparison.OrdinalIgnoreCase);
-
-                                // Asegurarse de que la ruta de la carpeta termine con una barra si no la tiene
-                                if (!carpetaLocalRemotaParaPS.EndsWith("\\") && !carpetaLocalRemotaParaPS.EndsWith("/"))
-                                {
-                                    carpetaLocalRemotaParaPS += "\\";
-                                }
-
-                                // Construir las rutas completas en formato LOCAL (C:\...) para PowerShell
-                                string rutaRemotaZipPS = Path.Combine(carpetaLocalRemotaParaPS, nombreArchivo);
-                                string rutaRemotaDestinoPS = carpetaLocalRemotaParaPS; // Descomprimir en la misma carpeta
-
-                                File.AppendAllText(logFile, $"Descompresión en {estacion}:\r\n");
-                                File.AppendAllText(logFile, $"  Archivo ZIP remoto (PS format): {rutaRemotaZipPS}\r\n");
-                                File.AppendAllText(logFile, $"  Destino Descompresión (PS format): {rutaRemotaDestinoPS}\r\n");
-
-                                // Llamada al método de descompresión con las rutas LOCALES para PowerShell
-                                if (await Task.Run(() => DescomprimirConWinRM(estacion, usuario, password, rutaRemotaZipPS, rutaRemotaDestinoPS, logFile))) // Usar Task.Run para async
-                                {
-                                    listCopiaOK.Items.Add($"{estacion} - Descompresión ✓");
-                                }
-                                else
-                                {
-                                    listCopiaError.Items.Add($"{estacion} - Error en descompresión");
-                                    File.AppendAllText(logFile, $"FALLO: No se pudo descomprimir en {estacion}\r\n");
-                                }
-                                //****************************************************
-
-                            }
-                            else if (chkDescomprimir.Checked && !Path.GetExtension(textBoxArchivoACopiar.Text).Equals(".zip", StringComparison.OrdinalIgnoreCase))
-                            {
-                                // Log si se marcó descomprimir pero no es un ZIP
-                                listCopiaError.Items.Add($"{estacion} - Advertencia: Archivo no es ZIP para descompresión.");
-                                File.AppendAllText(logFile, $"Advertencia: '{textBoxArchivoACopiar.Text}' no es un archivo .zip. Descompresión omitida.\r\n");
-                            }
-                            // =====================
-                            // FIN DESCOMPRESIÓN REMOTA
-                            // =====================
-
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        //string errorDetails = $"Error accediendo a {estacion}: {ex.GetType().Name} - {ex.Message}";
-                        string timestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
-                        string errorDetails = $"[{timestamp}]\n" +
-                                                $"Error en: {estacion}\n" +
-                                                $"Ruta: {Path.GetDirectoryName(destino)}\n" +
-                                                $"Dir. destino: {directorioDestino}\n" +
-                                                $"Usuario: {textBoxUsuario.Text}\n" +
-                                                $"Tipo error: {ex.GetType().Name}\n" +
-                                                $"Mensaje: {ex.Message}\n" +
-                                                //$"Stack Trace: {ex.StackTrace}\n" +
-                                                new string('=', 50);
-
-                        File.AppendAllText("log_conexiones.txt", errorDetails + Environment.NewLine);
-                        //File.WriteAllText("log_conexiones.txt", errorDetails + Environment.NewLine);
-                        File.AppendAllText(logFile, errorDetails + Environment.NewLine);
-
-                        listCopiaError.Items.Add($"{estacion} - ✗: {ex.Message.Split('\n')[0]}");
+                        adminShareForConnection = _rutaDestinoPredeterminada.Substring(0, 2);
                     }
 
-                    progressBar1.Value++;
-                    Application.DoEvents(); // Actualizar la UI
+                    // Esta es la ruta para establecer la conexión SMB, debe ser un recurso compartido existente (ej. \\IP\C$)
+                    string remoteShareBaseForConnection = $@"\\{ipAddress}\{adminShareForConnection}";
+
+                    NetworkCredential credenciales;
+
+                    // Comprobamos si el usuario tiene formato DOMINIO\AdminUser sino asumimos admin local
+                    if (usuario.Contains("\\"))
+                    {
+                        var partes = usuario.Split('\\');
+                        if (partes.Length != 2 || string.IsNullOrWhiteSpace(partes[0]) || string.IsNullOrWhiteSpace(partes[1]))
+                        {
+                            MessageBox.Show("El formato del nombre de usuario del dominio debe ser: DOMINIO\\usuario",
+                                            "Formato inválido",
+                                            MessageBoxButtons.OK,
+                                            MessageBoxIcon.Warning);
+                            return; // Detener la operación
+                        }
+                        credenciales = new NetworkCredential(partes[1], password, partes[0]);
+                    }
+                    else
+                    {
+                        // Usuario local o del dominio actual.
+                        // Si el usuario es local en la remota, el dominio sería el nombre de la estación.
+                        // Si es un usuario de dominio sin prefijo, .UserDomainName intentará resolverlo.
+                        credenciales = new NetworkCredential(usuario, password, Environment.UserDomainName);
+                    }
+
+                    string remoteShareBase = $@"\\{ipAddress}\{_rutaDestinoPredeterminada}";
+                    // Ejemplo: _rutaDestinoPredeterminada = "C$\instal\", entonces remoteShareBase = "\\192.168.1.100\C$\instal\"
+
+                    using (var networkConn = new NetworkConnection(remoteShareBaseForConnection, credenciales))
+                    {
+                        // El NetworkConnection establece la autenticación para las operaciones de red.
+
+                        progressBar2.Maximum = _selectedSourceItems.Count;
+                        progressBar2.Value = 0;
+
+                        // Por simplicidad, dejaremos que robocopy maneje la creación de directorios si es una carpeta.
+                        // Para archivos, el destino directo es la carpeta y robocopy crea el archivo dentro.
+
+                        foreach (SourceItem item in _selectedSourceItems)
+                        {
+                            // Esta será la cadena completa para Process.Start
+                            string robocopyFullArguments; 
+
+                            // Extraer solo la parte de la ruta sin la unidad (ej. "Temp")
+                            string relativeDestPath = _rutaDestinoPredeterminada.Replace("C$", "").Replace("D$", "").Trim('\\');
+                            string finalRemotePath = $@"\\{ipAddress}\{_rutaDestinoPredeterminada}"; // Ej: \\192.168.1.100\C$\Temp\
+
+                            if (item.Tipo == "Archivo")
+                            {
+                                string sourceDirectory = Path.GetDirectoryName(item.RutaCompleta); // Carpeta que contiene el archivo Ej: "E:\IMAGES"
+                                string sourceDirForRobocopy = sourceDirectory.Replace("\\", "\\\\");
+                                string destinationDirectory = remoteShareBase.TrimEnd('\\');       // Carpeta donde se copiará el archivo
+                                string fileName = item.Nombre;                                     // Nombre del archivo a copiar                         
+                                string robocopyFlags = "/Z /NFL /NDL /R:1 /W:1";                   // Flags comunes para archivos
+
+                                // Construimos la cadena robocopy original SIN ESACAPES ADICIONALES para CMD
+                                robocopyFullArguments = $"robocopy \"{sourceDirForRobocopy}\" \"{destinationDirectory}\" \"{fileName}\" {robocopyFlags}";
+                            }
+                            else // Tipo == "Carpeta"
+                            {
+                                string sourceFolderToCopy = item.RutaCompleta.TrimEnd('\\');                 // La ruta completa a la carpeta local que se quiere copiar. (ej: "E:\MyFolder"). Aseguramos que no tenga barra final;                               
+                                string remoteDestinationFolder = Path.Combine(remoteShareBase, item.Nombre); // El destino completo remoto (Path.Combine para unir la base remota con el nombre de la carpeta)
+                                string robocopyFlags = "/E /Z /NFL /NDL /R:1 /W:1";                          // /E para copiar subdirectorios (incluso vacíos), /COPYALL para permisos/atributos
+
+                                // Construimos la cadena robocopy original SIN ESACAPES ADICIONALES para CMD aún
+                                robocopyFullArguments = $"robocopy \"{sourceFolderToCopy}\" \"{remoteDestinationFolder}\" {robocopyFlags}";
+                            }
+
+                            progressBar2.Invoke((MethodInvoker)delegate { progressBar2.Value++; });
+
+                            try
+                            {
+                                // Llamada al método de ejecución de Robocopy
+                                await ExecuteRobocopyAsync(robocopyFullArguments, ipAddress, logFile);
+
+                                // =====================
+                                // DESCOMPRESIÓN REMOTA (Mantenemos la lógica de WinRM aquí, ya que es una acción remota)
+                                // =====================
+                                if (chkDescomprimir.Checked && Path.GetExtension(item.RutaCompleta).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // === CRUCIAL: ASEGURAR RUTAS LOCALES PARA EL SERVIDOR REMOTO (C:\...) ===
+                                    // Convertir la ruta base de C$ a C: para que PowerShell la entienda localmente
+                                    // rutaBase es "C$\Temp", queremos "C:\Temp"
+                                    string carpetaLocalRemotaParaPS = _rutaDestinoPredeterminada.Replace("C$", "C:", StringComparison.OrdinalIgnoreCase)
+                                                                                                  .Replace("D$", "D:", StringComparison.OrdinalIgnoreCase);
+
+                                    // Asegurarse de que la ruta de la carpeta termine con una barra si no la tiene
+                                    if (!carpetaLocalRemotaParaPS.EndsWith("\\") && !carpetaLocalRemotaParaPS.EndsWith("/"))
+                                    {
+                                        carpetaLocalRemotaParaPS += "\\";
+                                    }
+
+                                    // Construir las rutas completas en formato LOCAL (C:\...) para PowerShell
+                                    string rutaRemotaZipPS = Path.Combine(carpetaLocalRemotaParaPS, item.Nombre); // item.Nombre es el nombre del archivo ZIP
+                                    string rutaRemotaDestinoPS = carpetaLocalRemotaParaPS; // Descomprimir en la misma carpeta
+
+                                    File.AppendAllText(logFile, $"Descompresión en {ipAddress}:\r\n");
+                                    File.AppendAllText(logFile, $"  Archivo ZIP remoto (PS format): {rutaRemotaZipPS}\r\n");
+                                    File.AppendAllText(logFile, $"  Destino Descompresión (PS format): {rutaRemotaDestinoPS}\r\n");
+
+                                    // Llamada al método de descompresión con las rutas LOCALES para PowerShell
+                                    if (await DescomprimirConWinRM(ipAddress, usuario, password, rutaRemotaZipPS, rutaRemotaDestinoPS, logFile)) // Usar Task.Run no es necesario si DescomprimirConWinRM ya es async
+                                    {
+                                        listCopiaOK.Invoke((MethodInvoker)delegate {
+                                            listCopiaOK.Items.Add($"{ipAddress} - Descompresión ✓ de '{item.Nombre}'");
+                                        });
+                                    }
+                                    else
+                                    {
+                                        listCopiaError.Invoke((MethodInvoker)delegate {
+                                            listCopiaError.Items.Add($"{ipAddress} - Error en descompresión de '{item.Nombre}'");
+                                        });
+                                        File.AppendAllText(logFile, $"FALLO: No se pudo descomprimir '{item.Nombre}' en {ipAddress}\r\n");
+                                    }
+                                }
+                                else if (chkDescomprimir.Checked && !Path.GetExtension(item.RutaCompleta).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Log si se marcó descomprimir pero no es un ZIP
+                                    listCopiaError.Invoke((MethodInvoker)delegate {
+                                        listCopiaError.Items.Add($"{ipAddress} - Advertencia: '{item.Nombre}' no es ZIP para descompresión.");
+                                    });
+                                    File.AppendAllText(logFile, $"Advertencia: '{item.Nombre}' no es un archivo .zip. Descompresión omitida.\r\n");
+                                }
+                                // =====================
+                                // FIN DESCOMPRESIÓN REMOTA
+                                // =====================
+                            }
+                            catch (Exception ex)
+                            {
+                                string timestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
+                                string errorDetails = $"[{timestamp}]\n" +
+                                                      $"Error en: {ipAddress}\n" +
+                                                      $"Archivo/Carpeta: {item.Nombre}\n" +
+                                                      $"Tipo error: {ex.GetType().Name}\n" +
+                                                      $"Mensaje: {ex.Message}\n" +
+                                                      new string('=', 50);
+
+                                File.AppendAllText("log_conexiones.txt", errorDetails + Environment.NewLine);
+                                File.AppendAllText(logFile, errorDetails + Environment.NewLine);
+
+                                listCopiaError.Invoke((MethodInvoker)delegate {
+                                    listCopiaError.Items.Add($"{ipAddress} - ✗ '{item.Nombre}': {ex.Message.Split('\n')[0]}");
+                                });
+                            }
+
+                            progressBar1.Invoke((MethodInvoker)delegate { progressBar1.Value++; }); // Actualizar progreso
+                            Application.DoEvents(); // Procesar todos los mensajes pendientes en la cola de mensajes Para mantener la UI responsiva (considera un timer o un modelo más avanzado si es un uso intensivo)
+                        }
+                    } // Fin del 'using (networkConn ...)'
                 }
+                MessageBox.Show($"Proceso de copia y descompresión finalizado.\n" +
+                                $"Correctas: {listCopiaOK.Items.Count}\n" +
+                                $"Errores: {listCopiaError.Items.Count}",
+                                "Copia Completa",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ocurrió un error inesperado durante el proceso general: {ex.Message}", "Error Fatal", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                File.AppendAllText(logFile, $"Error fatal en btnSubir_Click: {ex.Message}\r\nStackTrace:\r\n{ex.StackTrace}\r\n");
             }
             finally
             {
                 btnSubir.Enabled = true;
+                Cursor = Cursors.Default;
             }
-
-            MessageBox.Show($"Proceso completado:\n" +
-                           $"Correctas: {listCopiaOK.Items.Count}\n" +
-                           $"Errores: {listCopiaError.Items.Count}",
-                           "Resumen",
-                           MessageBoxButtons.OK,
-                           MessageBoxIcon.Information);
         }
 
         /*******************************************************************************/
@@ -266,22 +382,107 @@ namespace VMAdmin
         /*******************************************************************************/
         private void btnExaminar_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            if (_currentSourceType == SourceType.File)
             {
-                // Configuración del diálogo
-                openFileDialog.Title = "Seleccionar archivo a copiar";
-                openFileDialog.Filter = "Todos los archivos (*.*)|*.*";
-                openFileDialog.CheckFileExists = true;
-                openFileDialog.Multiselect = false;
-
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                using (OpenFileDialog ofd = new OpenFileDialog())
                 {
-                    // Mostrar la ruta completa en el TextBox
-                    textBoxArchivoACopiar.Text = openFileDialog.FileName;
+                    ofd.Filter = "Todos los archivos (*.*)|*.*";
+                    ofd.Multiselect = true;
+
+                    if (ofd.ShowDialog() == DialogResult.OK)
+                    {
+                        foreach (string filePath in ofd.FileNames)
+                        {
+                            try
+                            {
+                                // Evitar duplicados al llenar el DataGrid
+                                if (!_selectedSourceItems.Any(item => item.RutaCompleta.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    FileInfo fi = new FileInfo(filePath);
+                                    _selectedSourceItems.Add(new SourceItem
+                                    {
+                                        Tipo = "Archivo",
+                                        Nombre = fi.Name,
+                                        RutaCompleta = fi.FullName,
+                                        Tamano = FormatBytes(fi.Length),
+                                        FechaModificacion = fi.LastWriteTime
+                                    });
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show($"Error al leer información del archivo {filePath}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            }
+                        }
+
+                        // Actualizar el TextBox según la cantidad de archivos seleccionados
+                        /*
+                        if (_selectedSourceItems.Count == 1)
+                        {
+                            textBoxArchivoACopiar.Text = _selectedSourceItems[0].RutaCompleta;
+                        }
+                        else
+                        {
+                            textBoxArchivoACopiar.Text = $"Múltiples archivos seleccionados ({_selectedSourceItems.Count})";
+                        }
+                        */
+                        // El DataGridView ya está enlazado a _selectedSourceItems, se actualizará automáticamente
+                    }
+                }
+            }
+            else if (_currentSourceType == SourceType.Folder)
+            {
+                using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+                {
+                    fbd.Description = "Seleccione la carpeta de origen";
+                    fbd.ShowNewFolderButton = false;
+
+                    if (fbd.ShowDialog() == DialogResult.OK)
+                    {
+                        // Para una carpeta, solo hay una ruta seleccionada.
+                        // Evitar duplicados
+                        if (!_selectedSourceItems.Any(item => item.RutaCompleta.Equals(fbd.SelectedPath, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            try
+                            {
+                                DirectoryInfo di = new DirectoryInfo(fbd.SelectedPath);
+                                _selectedSourceItems.Add(new SourceItem
+                                {
+                                    Tipo = "Carpeta",
+                                    Nombre = di.Name,
+                                    RutaCompleta = di.FullName,
+                                    Tamano = "N/A", // El tamaño de una carpeta se calcula de forma diferente
+                                    FechaModificacion = di.LastWriteTime
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show($"Error al leer información de la carpeta {fbd.SelectedPath}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            }
+                        }
+                        //textBoxArchivoACopiar.Text = fbd.SelectedPath; // El TextBox muestra la ruta de la carpeta
+
+                        // Es buena práctica invalidar el control para asegurar un refresco visual
+                        dataGridArchivosOrigen.Invalidate();
+                    }
                 }
             }
         }
-
+        /**************************************************************************************************/
+        // Método auxiliar para formatear el tamaño de los bytes
+        private string FormatBytes(long bytes)
+        {
+            string[] Suffix = { "B", "KB", "MB", "GB", "TB" };
+            int i = 0;
+            double dblSByte = bytes;
+            while (dblSByte >= 1024 && i < Suffix.Length - 1)
+            {
+                dblSByte /= 1024;
+                i++;
+            }
+            return string.Format("{0:0.##} {1}", dblSByte, Suffix[i]);
+        }
+        /**************************************************************************************************/
         private void button2_Click(object sender, EventArgs e)
         {
             this.Close();
@@ -295,17 +496,14 @@ namespace VMAdmin
         //********************************************************************************************//
 
         // 2. Nuevo método para ejecución remota vía WinRM
-        private bool DescomprimirConWinRM(string estacion, string usuario, string password,
+        private async Task<bool> DescomprimirConWinRM(string estacion, string usuario, string password,
                                           string rutaLocalRemotaPS, string rutaDestinoDescomprimidoPS,
                                           string logFile)
         {
             try
             {
-                // === COMANDO POWERSHELL EN UNA SOLA LÍNEA Y MEJOR ESCAPADO PARA POWERSHELL 4.0 USANDO .NET ===
-                // Usamos String.Format o interpolación directa para las rutas.
-                // Cada comilla doble DENTRO del script de PowerShell debe ser doblemente escapada (o con "`")
-                // No hay saltos de línea visibles para el shell/WinRM
-                // === COMANDO POWERSHELL CON LÓGICA DE CARPETA DE DESTINO DINÁMICA ===
+                // COMANDO POWERSHELL EN UNA SOLA LÍNEA Y MEJOR ESCAPADO PARA POWERSHELL 4.0 USANDO .NET
+                // CON LÓGICA DE CARPETA DE DESTINO DINÁMICA ===
                 string command = string.Format(
                     "$ErrorActionPreference = 'Stop'; " +
                     "try {{" +
@@ -334,30 +532,13 @@ namespace VMAdmin
                     "}}", rutaDestinoDescomprimidoPS, rutaLocalRemotaPS
                 );
 
-                /*
-                  string command = string.Format(
-                    "$ErrorActionPreference = 'Stop'; try {{" +
-                    "Add-Type -AssemblyName System.IO.Compression.FileSystem;" +
-                    "if (-not (Test-Path -Path '{0}')) {{" +
-                    "New-Item -Path '{0}' -ItemType Directory -Force | Out-Null;" +
-                    "}};" +
-                    "[System.IO.Compression.ZipFile]::ExtractToDirectory('{1}', '{0}', $true);" +
-                    "Write-Output 'SUCCESS_DECOMPRESSION';" +
-                    "exit 0;" +
-                    "}} catch {{" +
-                    "Write-Error \\\"ERROR_DECOMPRESSION: $($_.Exception.Message)\\\";" +
-                    "exit 1;" +
-                    "}}", rutaDestinoDescomprimidoPS, rutaLocalRemotaPS
-                );
-                */
                 ProcessStartInfo psi = new ProcessStartInfo
                 {
                     FileName = "winrs",
-                    //Arguments = $"-r:{estacion} -u:{usuario} -p:{password} powershell -Command \"{command.Replace("\"", "`\"")}\"", // Usar `\"` es más seguro
                     Arguments = $"-r:{estacion} -u:{usuario} -p:{password} powershell -Command \"{command}\"", // 'command' ya viene bien escapado para WinRM
                     UseShellExecute = false,
                     RedirectStandardError = true,
-                    RedirectStandardOutput = true, // También redirigir StandardOutput para capturar Write-Output
+                    RedirectStandardOutput = true,
                     CreateNoWindow = true
                 };
 
@@ -459,7 +640,7 @@ namespace VMAdmin
             // Si ya es una ruta local normal, la devuelve igual
             return rutaUNC;
         }
-
+        /************************************************************************************/
         private void listCopiaError_KeyDown(object sender, KeyEventArgs e)
         {
             // Asegurarse de que el control (Ctrl) esté presionado y la tecla 'C'
@@ -469,12 +650,10 @@ namespace VMAdmin
                 if (listCopiaError.SelectedItems.Count > 0)
                 {
                     // Unir todos los elementos seleccionados en un solo string, separados por saltos de línea
-                    // Si solo se permite una selección, SelectedItem bastaría.
-                    // Si se permite selección múltiple, SelectedItems es necesario.
                     StringBuilder sb = new StringBuilder();
                     foreach (var item in listCopiaError.SelectedItems)
                     {
-                        // Convertir el item a string. Si los items son objetos, considera sobreescribir ToString() en tu clase de objeto.
+                        // Convertir el item a string. Si los items son objetos, sobreescribir ToString() en la clase de objeto.
                         sb.AppendLine(item.ToString());
                     }
 
@@ -484,5 +663,146 @@ namespace VMAdmin
                 }
             }
         }
+        /************************************************************************************/
+        // Método auxiliar para ejecutar Robocopy asíncrono para no bloquear la UI durante las copias.
+        private async Task ExecuteRobocopyAsync(string robocopyCommandString, string stationIp, string logFile)
+        {
+            string cmdArguments = $"/c {robocopyCommandString}";
+
+            string logMessage = $"Iniciando comando en {stationIp}: cmd.exe {cmdArguments}\r\n";
+            File.AppendAllText(logFile, logMessage);
+
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe", // Ejecutar a través de cmd.exe
+                Arguments = cmdArguments, // Los argumentos para cmd.exe
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (Process process = new Process { StartInfo = psi })
+            {
+                StringBuilder output = new StringBuilder();
+                StringBuilder errorOutput = new StringBuilder();
+
+                process.OutputDataReceived += (sender, e) => { if (e.Data != null) output.AppendLine(e.Data); };
+                process.ErrorDataReceived += (sender, e) => { if (e.Data != null) errorOutput.AppendLine(e.Data); };
+
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                await Task.Run(() => process.WaitForExit());
+
+                string robocopyOutput = output.ToString();
+                string robocopyErrorOutput = errorOutput.ToString();
+
+                File.AppendAllText(logFile, "Salida de CMD/Robocopy:\r\n" + robocopyOutput + "\r\n");
+                if (!string.IsNullOrEmpty(robocopyErrorOutput))
+                {
+                    File.AppendAllText(logFile, "Salida de Error de CMD/Robocopy:\r\n" + robocopyErrorOutput + "\r\n");
+                }
+
+                // El exit code del proceso será el de robocopy, porque cmd.exe /c pasa el exit code del comando ejecutado.
+                int exitCode = process.ExitCode;
+
+                if (exitCode >= 0 && exitCode <= 7) // Éxito o advertencias leves de Robocopy
+                {
+                    listCopiaOK.Invoke((MethodInvoker)delegate {
+                        listCopiaOK.Items.Add($"{stationIp} - ✓ Copiado.");
+                    });
+                }
+                else // Errores graves (8, 16, etc.)
+                {
+                    string specificError = "Error desconocido.";
+                    if (robocopyErrorOutput.Contains("ERROR "))
+                    {
+                        specificError = robocopyErrorOutput.Split(new[] { "ERROR " }, StringSplitOptions.None)[1].Split('\n')[0].Trim();
+                    }
+                    else if (robocopyOutput.Contains("ERROR "))
+                    {
+                        specificError = robocopyOutput.Split(new[] { "ERROR " }, StringSplitOptions.None)[1].Split('\n')[0].Trim();
+                    }
+
+                    throw new Exception($"Error al copiar a {stationIp}. Código: {exitCode}. Detalles: {specificError}");
+                }
+            }
+        }
+        /************************************************************************************/
+        private void groupBox1_Enter(object sender, EventArgs e)
+        {
+
+        }
+        /************************************************************************************/
+        private void rbArchivos_CheckedChanged(object sender, EventArgs e)
+        {
+            if (rbArchivos.Checked)
+            {
+                _currentSourceType = SourceType.File;
+                chkDescomprimir.Enabled = true;
+                UpdateSourceUI();
+            }
+        }
+
+        private void rbCarpetas_CheckedChanged(object sender, EventArgs e)
+        {
+            if (rbCarpetas.Checked)
+            {
+                _currentSourceType = SourceType.Folder;
+                chkDescomprimir.Enabled = false;
+                UpdateSourceUI();
+            }
+        }
+
+        private void btnLimpiarLista_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("¿Está seguro que desea limpiar toda la lista de elementos a copiar?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                _selectedSourceItems.Clear(); // Limpia todos los elementos de la lista enlazada
+            }
+        }
+
+        private void btnEliminarSeleccionado_Click(object sender, EventArgs e)
+        {
+            // Obtener una lista de los elementos seleccionados en el DataGrid
+            List<SourceItem> itemsToRemove = new List<SourceItem>();
+            foreach (DataGridViewRow row in dataGridArchivosOrigen.SelectedRows)
+            {
+                if (row.DataBoundItem is SourceItem item)
+                {
+                    itemsToRemove.Add(item);
+                }
+            }
+
+            if (itemsToRemove.Count == 0)
+            {
+                MessageBox.Show("Por favor, seleccione al menos un elemento para eliminar.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (MessageBox.Show($"¿Está seguro que desea eliminar {itemsToRemove.Count} elemento(s) seleccionado(s) de la lista?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                // Eliminar los elementos de la lista _selectedSourceItems
+                // Es importante iterar de atrás hacia adelante o usar un foreach en una copia
+                // para evitar problemas con la modificación de la colección mientras se itera
+                foreach (SourceItem item in itemsToRemove)
+                {
+                    _selectedSourceItems.Remove(item);
+                }
+                // El DataGridView se actualizará automáticamente
+            }
+        }
+    }
+
+    // Clase auxiliar para los elementos del DataGridView
+    public class SourceItem
+    {
+        public string Tipo { get; set; } // "Archivo" o "Carpeta"
+        public string Nombre { get; set; }
+        public string RutaCompleta { get; set; }
+        public string Tamano { get; set; } // Formato legible, ej. "1.2 MB", "250 KB"
+        public DateTime FechaModificacion { get; set; }
     }
 }

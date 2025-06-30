@@ -424,6 +424,8 @@ namespace VMAdmin
 
         private void ActualizarEstadisticas()
         {
+            
+            
             labelTotal.Text = total.ToString();
             labelActivas.Text = totalActivas.ToString();
             labelRDP.Text = totalRDP.ToString();
@@ -431,6 +433,7 @@ namespace VMAdmin
             labelTelnet.Text = totalTelnet.ToString();
             labelHTTP.Text = totalHTTP.ToString();
             labelHTTPS.Text = totalHTTPS.ToString();
+
             /*
             labelTotal.Text = "0";
             labelActivas.Text = "0";
@@ -450,7 +453,17 @@ namespace VMAdmin
             _cancelacion = new CancellationTokenSource();
             btnCancelar.Enabled = true;
 
-            labelTotal.Text = labelTotal.ToString();
+            total = 0;
+            totalActivas = 0;
+            totalRDP = 0;
+            totalSSH = 0;
+            totalTelnet = 0;
+            totalHTTP = 0;
+            totalHTTPS = 0;
+            totalSMB = 0;
+            totalWindowsON = 0;
+            
+            //labelTotal.Text = total.ToString();
             ActualizarEstadisticas(); // Para poner todo en cero visualmente
 
             if (!ValidarRangoClaseC(TextBoxInicio.Text, TextBoxFin.Text))
